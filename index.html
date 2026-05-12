@@ -85,21 +85,6 @@ body::before { content:''; position:fixed; inset:0; background:repeating-linear-
 <script>
 // ── INLINE MQTT CLIENT (no CDN) ────────────────────────────────────────────
 // Minimal MQTT 3.1.1 over WebSocket — CONNECT, SUBSCRIBE, PUBLISH, PINGREQ/RESP
-class MicroMQTT {
-  constructor(url, opts = {}) {
-    this._url       = url;
-    this._opts      = opts;
-    this._ws        = null;
-    this._buf       = new Uint8Array(0);
-    this._subs      = {}; // topic → [callback]
-    this._onConnect = opts.onConnect || (() => {});
-    this._onError   = opts.onError   || (() => {});
-    this._pingTimer = null;
-    this._reconnectTimer = null;
-    this._dead      = false;
-    this._clientId  = opts.clientId || 'mc_' + Math.random().toString(36).slice(2, 10);
-    this._connect();
-  }
 
   _connect() {
     if (this._dead) return;
@@ -218,12 +203,6 @@ class MicroMQTT {
   destroy() { this._dead = true; clearInterval(this._pingTimer); clearTimeout(this._reconnectTimer); this._ws?.close(); }
 }
 
-// ── CONFIG ─────────────────────────────────────────────────────────────────
-const BROKER    = 'wss://broker.hivemq.com:8884/mqtt';
-const params    = new URLSearchParams(location.search);
-const ROOM      = params.get('room') || 'panoptikon-default';
-const TOPIC_CMD = `panoptikon/${ROOM}/cmd`;
-const TOPIC_HB  = `panoptikon/${ROOM}/hb`;
 
 const TASKS = [
   "Draw a silly dog in your book. Show it to the person infront or behind you, if you wish",
@@ -435,50 +414,39 @@ function resetAll() {
   document.getElementById('nextCheckTxt').innerHTML = 'AWAITING START SIGNAL<br><span>CONNECT TO CLASS NETWORK</span>';
 }
 
-// ── AUTO-START FALLBACK ───────────────────────────────────────────────────
-setTimeout(() => {
+// ── AUTONOMOUS START ─────────────────────────
 
-  // If teacher already connected, don't auto-start
-  if (teacherConnected || started) return;
+document.getElementById('nextCheckTxt').innerHTML =
+  'SYSTEM INITIALISING<br><span>OBSERVATION ENGINE STANDBY</span>';
 
-  document.getElementById('nextCheckTxt').innerHTML =
-    'NO SIGNAL — AUTO-ARMING IN 2 MIN<br><span>OR WAIT FOR TEACHER</span>';
+let autoIn = 120;
 
-  let autoIn = 120;
+const startupInterval = setInterval(() => {
 
-  const t = setInterval(() => {
+  autoIn--;
 
-    if (teacherConnected || started) {
-      clearInterval(t);
-      return;
-    }
+  const m = Math.floor(autoIn / 60);
+  const s = autoIn % 60;
 
-    autoIn--;
+  document.getElementById('countdownNum').textContent =
+    `${m}:${String(s).padStart(2,'0')}`;
 
-    const m = Math.floor(autoIn / 60);
-    const s = autoIn % 60;
+  document.getElementById('countdownLbl').textContent =
+    'UNTIL ARMED';
 
-    document.getElementById('countdownNum').textContent =
-      `${m}:${String(s).padStart(2,'0')}`;
+  if (autoIn <= 0) {
 
-    document.getElementById('countdownLbl').textContent =
-      'AUTO-START';
+    clearInterval(startupInterval);
 
-    if (autoIn <= 0) {
-      clearInterval(t);
+    beginCountdown(0);
+  }
 
-      // TRUE autonomous mode
-      beginCountdown(0);
-    }
-
-  }, 1000);
-
-}, 10000);
-
+}, 1000);
+  
 // ── INIT ──────────────────────────────────────────────────────────────────
 document.addEventListener('touchstart', ()=>{ try{ac().resume()}catch(e){} }, {once:true});
 document.addEventListener('click',      ()=>{ try{ac().resume()}catch(e){} }, {once:true});
-connectMQTT();
+
 </script>
 </body>
 </html>
