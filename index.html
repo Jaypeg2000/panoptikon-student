@@ -20,11 +20,11 @@ body::before { content:''; position:fixed; inset:0; background:repeating-linear-
 .status-dot { width:10px; height:10px; border-radius:50%; background:#1e1e1e; transition:background 0.5s, box-shadow 0.5s; }
 .status-dot.armed { background:#8b0000; box-shadow:0 0 12px #8b0000,0 0 24px #4a0000; animation:pulse-red 2s ease-in-out infinite; }
 @keyframes pulse-red { 0%,100%{box-shadow:0 0 8px #8b0000,0 0 16px #4a0000} 50%{box-shadow:0 0 18px #cc0000,0 0 36px #8b0000} }
-.status-label { font-size:9px; letter-spacing:0.25em; color:#2a2a2a; }
+.status-label { font-size:9px; letter-spacing:0.25em; color:#666; }
 .status-label.armed { color:#8b0000; }
 .divider-line { width:36px; height:1px; background:#141414; }
 .countdown-wrap { display:flex; flex-direction:column; align-items:center; gap:3px; }
-.countdown-num { font-family:var(--display); font-size:52px; color:#1e1e1e; line-height:1; letter-spacing:0.05em; transition:color 0.5s; }
+.countdown-num { font-family:var(--display); font-size:52px; color:#666; line-height:1; letter-spacing:0.05em; transition:color 0.5s; }
 .countdown-num.armed { color:#5a0000; }
 .countdown-lbl { font-size:8px; letter-spacing:0.3em; color:#1e1e1e; }
 .next-check { font-size:9px; letter-spacing:0.12em; color:#222; text-align:center; line-height:1.9; }
