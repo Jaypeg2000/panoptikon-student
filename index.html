@@ -226,33 +226,41 @@ const TOPIC_CMD = `panoptikon/${ROOM}/cmd`;
 const TOPIC_HB  = `panoptikon/${ROOM}/hb`;
 
 const TASKS = [
-  "Write down ONE thing you just learned in the last 10 minutes.",
-  "Turn to the person next to you. Explain the last concept in your own words.",
-  "Draw a quick diagram of what was just discussed.",
-  "Write a one-sentence summary of the topic so far.",
-  "Think of one real-world example of what was just explained.",
-  "Write down a question you still have about this topic.",
-  "List 3 key terms from this lesson and define them briefly.",
-  "Sketch the process or sequence just described from memory.",
-  "Write what you found most surprising or interesting so far.",
-  "Without looking at notes — what are the 3 most important points?",
-  "Write how today's topic connects to something you already knew.",
-  "Complete this sentence: 'The main idea of this lesson is…'",
-  "Predict: what do you think comes next in this topic?",
-  "Write one way you could apply what you just learned.",
-  "Identify one thing you're still confused about and write it down.",
-  "Rate your current understanding 1–10 and write why.",
-  "Explain this topic as if teaching it to a 10-year-old.",
-  "Write down the most important word from this lesson and define it.",
-  "List two similarities and one difference between two concepts discussed.",
-  "If you had to teach one part of this lesson, which would you choose and why?",
+  "Draw a silly dog in your book. Show it to the person infront or behind you, if you wish",
+  "Start doomscrolling. At least 20 insta reels or such.",
+  "Think of one real-world example of what was just explained in the short film.",
+  "Come to front of the class to be surveilled. Remember to smile!",
+  "Take a selfie, with flash",
+  "Ask someone for money.",
+  "Put headphones in.",
+  "Draw a square, preferably with a ruler.",
+  "Get into an argument with the person next to you, or give an attempt to.",
+  "Look directly at David Shea for 10-20 seconds.",
+  "Start conversation on a really touchy subject out of nowhere.",
+  "Swap devices with someone else who has a red screen/task."
+  "Change seats.",
+  "Ask to swap seats with someone.",
+  "Move to the front of the class.",
+  "Come to the front and start presenting. If you have anxiety, you don't have to do this.",
+  "Sit on your chair backwards.".
+  "Take the note in your book/on your computer 'watch twin peaks'",
+  "Cough. Really loudly.",
+  "If you have any food, start eating it.",
+  "Take notes on the presentation.",
+  "Open the palantir website.",
+  "Open the unimelb free speech declaration.",
+  "Leave the room and re-enter from another door",
+  "Stand up, then sit back down again.",
+  "Tap someones shoulder, then act like you didn't."
 ];
 
 // ── STATE ──────────────────────────────────────────────────────────────────
 let mqtt, started=false, armed=false, taskActive=false;
 let startTime=null, armDelay=120, nextCheckIn=0, taskCountdown=60;
 let countdownTimer=null, taskIntervalId=null, checkIntervalId=null;
-const TASK_DURATION=60, CHECK_EVERY=60, TASK_CHANCE=3/20;
+const TASK_DURATION=60, CHECK_EVERY=60, let currentTaskChance = 0.15;
+const TASK_CHANCE_INCREMENT = 0.15;
+const MAX_TASK_CHANCE = 1.0;
 
 // ── AUDIO ──────────────────────────────────────────────────────────────────
 let audioCtx = null;
@@ -336,11 +344,34 @@ function arm() {
 
 function doCheck() {
   if (taskActive) return;
-  nextCheckIn = Math.max(0, nextCheckIn-1);
+
+  nextCheckIn = Math.max(0, nextCheckIn - 1);
   updateNextCheck();
-  if (nextCheckIn<=0) {
-    nextCheckIn=CHECK_EVERY;
-    if (Math.random() < TASK_CHANCE) showTask(randomTask());
+
+  if (nextCheckIn <= 0) {
+    nextCheckIn = CHECK_EVERY;
+
+    if (Math.random() < currentTaskChance) {
+
+      // TASK TRIGGERED
+      showTask(randomTask());
+
+      // Reset chance after activation
+      currentTaskChance = 0.15;
+
+    } else {
+
+      // Increase chance after failed roll
+      currentTaskChance = Math.min(
+        currentTaskChance + TASK_CHANCE_INCREMENT,
+        MAX_TASK_CHANCE
+      );
+
+    }
+
+    console.log(
+      `Current task chance: ${Math.round(currentTaskChance * 100)}%`
+    );
   }
 }
 
@@ -348,7 +379,7 @@ function updateNextCheck() {
   const m=Math.floor(nextCheckIn/60), s=nextCheckIn%60;
   document.getElementById('countdownNum').textContent = `${m}:${String(s).padStart(2,'0')}`;
   document.getElementById('countdownLbl').textContent = 'NEXT CHECK';
-  document.getElementById('nextCheckTxt').innerHTML = `SYSTEM ARMED &nbsp;·&nbsp; 15% TASK CHANCE<br><span>PER 60s CHECK</span>`;
+  document.getElementById('nextCheckTxt').innerHTML = `SYSTEM ARMED · ${Math.round(currentTaskChance * 100)}% TASK CHANCE<br><span>PER 60s CHECK</span>`;
 }
 
 // ── TASK ──────────────────────────────────────────────────────────────────
