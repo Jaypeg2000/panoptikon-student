@@ -308,7 +308,17 @@ function connectMQTT() {
 
 function handleCmd(topic, raw) {
   let msg; try { msg = JSON.parse(raw); } catch { return; }
-  if (msg.type==='start' && !started) beginCountdown(typeof msg.delaySeconds==='number' ? msg.delaySeconds : 120);
+  if (msg.type==='start') {
+  teacherConnected = true;
+
+  if (!started) {
+    beginCountdown(
+      typeof msg.delaySeconds==='number'
+        ? msg.delaySeconds
+        : 120
+    );
+  }
+}
   if (msg.type==='task' && armed && !taskActive) showTask(msg.task || randomTask());
   if (msg.type==='reset') resetAll();
 }
@@ -427,17 +437,42 @@ function resetAll() {
 
 // ── AUTO-START FALLBACK ───────────────────────────────────────────────────
 setTimeout(() => {
-  if (started) return;
-  document.getElementById('nextCheckTxt').innerHTML = 'NO SIGNAL — AUTO-ARMING IN 2 MIN<br><span>OR WAIT FOR TEACHER</span>';
-  let autoIn=120;
-  const t=setInterval(() => {
-    if (started) { clearInterval(t); return; }
+
+  // If teacher already connected, don't auto-start
+  if (teacherConnected || started) return;
+
+  document.getElementById('nextCheckTxt').innerHTML =
+    'NO SIGNAL — AUTO-ARMING IN 2 MIN<br><span>OR WAIT FOR TEACHER</span>';
+
+  let autoIn = 120;
+
+  const t = setInterval(() => {
+
+    if (teacherConnected || started) {
+      clearInterval(t);
+      return;
+    }
+
     autoIn--;
-    const m=Math.floor(autoIn/60), s=autoIn%60;
-    document.getElementById('countdownNum').textContent = `${m}:${String(s).padStart(2,'0')}`;
-    document.getElementById('countdownLbl').textContent = 'AUTO-START';
-    if (autoIn<=0) { clearInterval(t); beginCountdown(0); }
+
+    const m = Math.floor(autoIn / 60);
+    const s = autoIn % 60;
+
+    document.getElementById('countdownNum').textContent =
+      `${m}:${String(s).padStart(2,'0')}`;
+
+    document.getElementById('countdownLbl').textContent =
+      'AUTO-START';
+
+    if (autoIn <= 0) {
+      clearInterval(t);
+
+      // TRUE autonomous mode
+      beginCountdown(0);
+    }
+
   }, 1000);
+
 }, 10000);
 
 // ── INIT ──────────────────────────────────────────────────────────────────
