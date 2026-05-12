@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PANOPTIKON // CONTROL</title>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap');
+
+:root{
+  --red:#cc1111;
+  --bg:#050505;
+  --panel:#111;
+  --text:#ddd;
+}
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Share Tech Mono', monospace;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+}
+
+.panel{
+  width:min(500px,90vw);
+  background:var(--panel);
+  border:1px solid #222;
+  padding:28px;
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+  box-shadow:0 0 40px rgba(255,0,0,0.08);
+}
+
+.title{
+  font-family:'VT323', monospace;
+  font-size:42px;
+  color:var(--red);
+  letter-spacing:0.08em;
+}
+
+.subtitle{
+  color:#777;
+  font-size:12px;
+}
+
+.row{
+  display:flex;
+  gap:12px;
+}
+
+input{
+  flex:1;
+  background:#000;
+  border:1px solid #333;
+  color:#fff;
+  padding:12px;
+  font-family:inherit;
+}
+
+button{
+  background:var(--red);
+  border:none;
+  color:#000;
+  padding:14px;
+  font-family:inherit;
+  font-weight:bold;
+  cursor:pointer;
+  transition:0.2s;
+}
+
+button:hover{
+  filter:brightness(1.2);
+}
+
+.big{
+  padding:18px;
+  font-size:18px;
+}
+
+.status{
+  font-size:12px;
+  color:#888;
+}
+</style>
+</head>
+<body>
+
+<div class="panel">
+
+  <div class="title">PANOPTIKON</div>
+  <div class="subtitle">CLASSROOM OBSERVATION CONTROL INTERFACE</div>
+
+  <div class="row">
+    <input id="roomInput" value="default-room">
+  </div>
+
+  <button class="big" onclick="startSystem()">
+    ARM SYSTEM
+  </button>
+
+  <button onclick="sendTask()">
+    FORCE TASK
+  </button>
+
+  <button onclick="resetSystem()">
+    RESET ALL NODES
+  </button>
+
+  <div class="status" id="status">
+    CONNECTING...
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// MQTT CONFIG
+// ─────────────────────────────────────────────
+
+const BROKER = 'wss://broker.hivemq.com:8884/mqtt';
+
+function topic() {
+  const room = document.getElementById('roomInput').value.trim();
+  return `panoptikon/${room}/cmd`;
+}
+
+// ─────────────────────────────────────────────
+// MICRO MQTT
+// ─────────────────────────────────────────────
+
+class MicroMQTT {
+  constructor(url,onConnect){
+    this.ws = new WebSocket(url,['mqtt']);
+    this.ws.binaryType='arraybuffer';
+    this.ws.onopen=()=>this.connect(onConnect);
+  }
+
+  connect(cb){
+    const id='teacher_'+Math.random().toString(36).slice(2,8);
+
+    const enc=s=>{
+      const b=new TextEncoder().encode(s);
+      return [b.length>>8,b.length&255,...b];
+    };
+
+    const proto=enc('MQTT');
+    const cid=enc(id);
+
+    const pkt=new Uint8Array([
+      0x10,
+      proto.length+cid.length+4,
+      ...proto,
+      4,
+      2,
+      0,60,
+      ...cid
+    ]);
+
+    this.ws.send(pkt);
+
+    setTimeout(cb,500);
+  }
+
+  publish(topic,payload){
+    const enc=s=>{
+      const b=new TextEncoder().encode(s);
+      return [b.length>>8,b.length&255,...b];
+    };
+
+    const t=enc(topic);
+    const p=new TextEncoder().encode(payload);
+
+    const len=t.length+p.length;
+
+    this.ws.send(new Uint8Array([
+      0x30,
+      len,
+      ...t,
+      ...p
+    ]));
+  }
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+
+const mqtt = new MicroMQTT(BROKER,()=>{
+  document.getElementById('status').textContent='CONNECTED';
+});
+
+// ─────────────────────────────────────────────
+// COMMANDS
+// ─────────────────────────────────────────────
+
+function startSystem(){
+  mqtt.publish(topic(),JSON.stringify({
+    type:'start',
+    delaySeconds:120
+  }));
+}
+
+function sendTask(){
+  mqtt.publish(topic(),JSON.stringify({
+    type:'task'
+  }));
+}
+
+function resetSystem(){
+  mqtt.publish(topic(),JSON.stringify({
+    type:'reset'
+  }));
+}
+</script>
+
+</body>
+</html>
