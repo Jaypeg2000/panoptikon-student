@@ -15,19 +15,25 @@
   --text:#ddd;
 }
 
-body{
+*{
+  box-sizing:border-box;
   margin:0;
+  padding:0;
+}
+
+body{
   background:var(--bg);
   color:var(--text);
   font-family:'Share Tech Mono', monospace;
+  min-height:100vh;
   display:flex;
   justify-content:center;
   align-items:center;
-  min-height:100vh;
+  padding:20px;
 }
 
 .panel{
-  width:min(500px,90vw);
+  width:min(520px,95vw);
   background:var(--panel);
   border:1px solid #222;
   padding:28px;
@@ -39,7 +45,7 @@ body{
 
 .title{
   font-family:'VT323', monospace;
-  font-size:42px;
+  font-size:46px;
   color:var(--red);
   letter-spacing:0.08em;
 }
@@ -47,6 +53,51 @@ body{
 .subtitle{
   color:#777;
   font-size:12px;
+  line-height:1.5;
+}
+
+.section{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.label{
+  font-size:11px;
+  color:#777;
+  letter-spacing:0.12em;
+}
+
+input,
+textarea{
+  width:100%;
+  background:#000;
+  border:1px solid #333;
+  color:#fff;
+  padding:14px;
+  font-family:inherit;
+  font-size:14px;
+}
+
+textarea{
+  resize:vertical;
+  min-height:90px;
+}
+
+button{
+  background:var(--red);
+  border:none;
+  color:#000;
+  padding:16px;
+  font-family:inherit;
+  font-weight:bold;
+  font-size:15px;
+  cursor:pointer;
+  transition:0.2s;
+}
+
+button:hover{
+  filter:brightness(1.15);
 }
 
 .row{
@@ -54,38 +105,20 @@ body{
   gap:12px;
 }
 
-input{
+.row button{
   flex:1;
-  background:#000;
-  border:1px solid #333;
-  color:#fff;
-  padding:12px;
-  font-family:inherit;
-}
-
-button{
-  background:var(--red);
-  border:none;
-  color:#000;
-  padding:14px;
-  font-family:inherit;
-  font-weight:bold;
-  cursor:pointer;
-  transition:0.2s;
-}
-
-button:hover{
-  filter:brightness(1.2);
-}
-
-.big{
-  padding:18px;
-  font-size:18px;
 }
 
 .status{
   font-size:12px;
   color:#888;
+  border-top:1px solid #222;
+  padding-top:12px;
+}
+
+.small{
+  font-size:12px;
+  padding:12px;
 }
 </style>
 </head>
@@ -94,22 +127,42 @@ button:hover{
 <div class="panel">
 
   <div class="title">PANOPTIKON</div>
-  <div class="subtitle">CLASSROOM OBSERVATION CONTROL INTERFACE</div>
 
-  <div class="row">
-    <input id="roomInput" value="default-room">
+  <div class="subtitle">
+    CLASSROOM OBSERVATION CONTROL INTERFACE
   </div>
 
-  <button class="big" onclick="startSystem()">
+  <div class="section">
+    <div class="label">ROOM</div>
+    <input id="roomInput" value="physics">
+  </div>
+
+  <div class="section">
+    <div class="label">ARM DELAY (SECONDS)</div>
+    <input id="delayInput" type="number" value="120">
+  </div>
+
+  <button onclick="startSystem()">
     ARM SYSTEM
   </button>
 
-  <button onclick="sendTask()">
-    FORCE TASK
-  </button>
+  <div class="section">
+    <div class="label">CUSTOM TASK</div>
+    <textarea id="taskInput" placeholder="Leave blank for random student-side task"></textarea>
+  </div>
 
-  <button onclick="resetSystem()">
-    RESET ALL NODES
+  <div class="row">
+    <button onclick="sendTask()">
+      FORCE TASK
+    </button>
+
+    <button onclick="resetSystem()">
+      RESET
+    </button>
+  </div>
+
+  <button class="small" onclick="testSignal()">
+    SEND TEST SIGNAL
   </button>
 
   <div class="status" id="status">
@@ -120,102 +173,294 @@ button:hover{
 
 <script>
 // ─────────────────────────────────────────────
-// MQTT CONFIG
-// ─────────────────────────────────────────────
-
-const BROKER = 'wss://broker.hivemq.com:8884/mqtt';
-
-function topic() {
-  const room = document.getElementById('roomInput').value.trim();
-  return `panoptikon/${room}/cmd`;
-}
-
-// ─────────────────────────────────────────────
-// MICRO MQTT
+// MQTT CLASS
 // ─────────────────────────────────────────────
 
 class MicroMQTT {
-  constructor(url,onConnect){
-    this.ws = new WebSocket(url,['mqtt']);
-    this.ws.binaryType='arraybuffer';
-    this.ws.onopen=()=>this.connect(onConnect);
+  constructor(url, opts = {}) {
+    this._url       = url;
+    this._opts      = opts;
+    this._ws        = null;
+    this._buf       = new Uint8Array(0);
+    this._subs      = {};
+    this._onConnect = opts.onConnect || (() => {});
+    this._onError   = opts.onError   || (() => {});
+    this._pingTimer = null;
+    this._reconnectTimer = null;
+    this._dead      = false;
+    this._clientId  =
+      opts.clientId ||
+      'mc_' + Math.random().toString(36).slice(2, 10);
+
+    this._connect();
   }
 
-  connect(cb){
-    const id='teacher_'+Math.random().toString(36).slice(2,8);
+  _connect() {
+    if (this._dead) return;
 
-    const enc=s=>{
-      const b=new TextEncoder().encode(s);
-      return [b.length>>8,b.length&255,...b];
-    };
+    try {
+      this._ws = new WebSocket(this._url, ['mqtt']);
 
-    const proto=enc('MQTT');
-    const cid=enc(id);
+      this._ws.binaryType = 'arraybuffer';
 
-    const pkt=new Uint8Array([
-      0x10,
-      proto.length+cid.length+4,
+      this._ws.onopen    = () => this._onOpen();
+      this._ws.onmessage = e => this._onData(new Uint8Array(e.data));
+      this._ws.onerror   = () => this._scheduleReconnect();
+      this._ws.onclose   = () => this._scheduleReconnect();
+
+    } catch(e) {
+      this._scheduleReconnect();
+    }
+  }
+
+  _scheduleReconnect() {
+    clearTimeout(this._reconnectTimer);
+
+    if (this._dead) return;
+
+    this._onError();
+
+    this._reconnectTimer =
+      setTimeout(() => this._connect(), 4000);
+  }
+
+  _onOpen() {
+    const id    = this._clientId;
+    const idB   = this._str(id);
+    const proto = this._str('MQTT');
+
+    const varH = new Uint8Array([
       ...proto,
       4,
       2,
-      0,60,
-      ...cid
+      0, 60,
     ]);
 
-    this.ws.send(pkt);
+    const payload = new Uint8Array(idB);
 
-    setTimeout(cb,500);
+    const varLen = varH.length + payload.length;
+
+    const pkt = new Uint8Array([
+      0x10,
+      ...this._varInt(varLen),
+      ...varH,
+      ...payload
+    ]);
+
+    this._ws.send(pkt);
   }
 
-  publish(topic,payload){
-    const enc=s=>{
-      const b=new TextEncoder().encode(s);
-      return [b.length>>8,b.length&255,...b];
-    };
+  _str(s) {
+    const b = new TextEncoder().encode(s);
 
-    const t=enc(topic);
-    const p=new TextEncoder().encode(payload);
+    return [
+      b.length >> 8,
+      b.length & 0xff,
+      ...b
+    ];
+  }
 
-    const len=t.length+p.length;
+  _varInt(n) {
+    const out = [];
 
-    this.ws.send(new Uint8Array([
+    do {
+      let b = n & 0x7f;
+      n >>= 7;
+
+      if (n > 0) b |= 0x80;
+
+      out.push(b);
+
+    } while (n > 0);
+
+    return out;
+  }
+
+  _onData(chunk) {
+    const merged =
+      new Uint8Array(this._buf.length + chunk.length);
+
+    merged.set(this._buf);
+    merged.set(chunk, this._buf.length);
+
+    this._buf = merged;
+
+    while (this._buf.length >= 2) {
+
+      const type = (this._buf[0] >> 4);
+
+      let mul = 1;
+      let rl  = 0;
+      let i   = 1;
+
+      do {
+        if (i >= this._buf.length) return;
+
+        rl += (this._buf[i] & 0x7f) * mul;
+
+        mul *= 128;
+
+      } while (this._buf[i++] & 0x80);
+
+      const total = i + rl;
+
+      if (this._buf.length < total) return;
+
+      this._buf = this._buf.slice(total);
+
+      if (type === 2) {
+        this._onConnect();
+
+        this._pingTimer =
+          setInterval(() => this._ping(), 50000);
+      }
+    }
+  }
+
+  publish(topic, payload) {
+    if (this._ws?.readyState !== 1) return;
+
+    const tB = this._str(topic);
+    const pB = new TextEncoder().encode(payload);
+
+    const varLen = tB.length + pB.length;
+
+    this._ws.send(new Uint8Array([
       0x30,
-      len,
-      ...t,
-      ...p
+      ...this._varInt(varLen),
+      ...tB,
+      ...pB
     ]));
+  }
+
+  _ping() {
+    this._ws?.readyState === 1 &&
+      this._ws.send(new Uint8Array([0xc0, 0x00]));
+  }
+
+  destroy() {
+    this._dead = true;
+
+    clearInterval(this._pingTimer);
+    clearTimeout(this._reconnectTimer);
+
+    this._ws?.close();
   }
 }
 
 // ─────────────────────────────────────────────
-// INIT
+// CONFIG
 // ─────────────────────────────────────────────
 
-const mqtt = new MicroMQTT(BROKER,()=>{
-  document.getElementById('status').textContent='CONNECTED';
+const BROKER =
+  'wss://broker.hivemq.com:8884/mqtt';
+
+// ─────────────────────────────────────────────
+// MQTT INIT
+// ─────────────────────────────────────────────
+
+const mqtt = new MicroMQTT(BROKER, {
+
+  clientId:
+    'teacher_' +
+    Math.random().toString(36).slice(2,9),
+
+  onConnect: () => {
+    status('CONNECTED');
+  },
+
+  onError: () => {
+    status('OFFLINE — RETRYING');
+  }
 });
+
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+
+function status(txt) {
+  document.getElementById('status').textContent = txt;
+}
+
+function room() {
+  return document
+    .getElementById('roomInput')
+    .value
+    .trim();
+}
+
+function topic() {
+  return `panoptikon/${room()}/cmd`;
+}
+
+function publish(obj) {
+
+  mqtt.publish(
+    topic(),
+    JSON.stringify(obj)
+  );
+
+  console.log('PUBLISHED:', obj);
+}
 
 // ─────────────────────────────────────────────
 // COMMANDS
 // ─────────────────────────────────────────────
 
-function startSystem(){
-  mqtt.publish(topic(),JSON.stringify({
+function startSystem() {
+
+  const delay =
+    parseInt(
+      document.getElementById('delayInput').value
+    ) || 0;
+
+  publish({
     type:'start',
-    delaySeconds:120
-  }));
+    delaySeconds:delay
+  });
+
+  status(
+    `SYSTEM ARMED (${delay}s DELAY)`
+  );
 }
 
-function sendTask(){
-  mqtt.publish(topic(),JSON.stringify({
+function sendTask() {
+
+  const txt =
+    document.getElementById('taskInput')
+    .value
+    .trim();
+
+  const msg = {
     type:'task'
-  }));
+  };
+
+  if (txt.length > 0) {
+    msg.task = txt;
+  }
+
+  publish(msg);
+
+  status('TASK BROADCAST SENT');
 }
 
-function resetSystem(){
-  mqtt.publish(topic(),JSON.stringify({
+function resetSystem() {
+
+  publish({
     type:'reset'
-  }));
+  });
+
+  status('RESET SIGNAL SENT');
+}
+
+function testSignal() {
+
+  publish({
+    type:'task',
+    task:'TEST SIGNAL RECEIVED'
+  });
+
+  status('TEST SIGNAL SENT');
 }
 </script>
 
