@@ -20,7 +20,7 @@ body::before { content:''; position:fixed; inset:0; background:repeating-linear-
 .status-dot { width:10px; height:10px; border-radius:50%; background:#1e1e1e; transition:background 0.5s, box-shadow 0.5s; }
 .status-dot.armed { background:#8b0000; box-shadow:0 0 12px #8b0000,0 0 24px #4a0000; animation:pulse-red 2s ease-in-out infinite; }
 @keyframes pulse-red { 0%,100%{box-shadow:0 0 8px #8b0000,0 0 16px #4a0000} 50%{box-shadow:0 0 18px #cc0000,0 0 36px #8b0000} }
-.status-label { font-size:9px; letter-spacing:0.25em; color:#2a2a2a; }
+.status-label { font-size:9px; letter-spacing:0.25em; color:#666; }
 .status-label.armed { color:#8b0000; }
 .divider-line { width:36px; height:1px; background:#141414; }
 .countdown-wrap { display:flex; flex-direction:column; align-items:center; gap:3px; }
@@ -225,27 +225,33 @@ const ROOM      = params.get('room') || 'panoptikon-default';
 const TOPIC_CMD = `panoptikon/${ROOM}/cmd`;
 const TOPIC_HB  = `panoptikon/${ROOM}/hb`;
 
-const TASKS = [
-  "Write down ONE thing you just learned in the last 10 minutes.",
-  "Turn to the person next to you. Explain the last concept in your own words.",
-  "Draw a quick diagram of what was just discussed.",
-  "Write a one-sentence summary of the topic so far.",
-  "Think of one real-world example of what was just explained.",
-  "Write down a question you still have about this topic.",
-  "List 3 key terms from this lesson and define them briefly.",
-  "Sketch the process or sequence just described from memory.",
-  "Write what you found most surprising or interesting so far.",
-  "Without looking at notes — what are the 3 most important points?",
-  "Write how today's topic connects to something you already knew.",
-  "Complete this sentence: 'The main idea of this lesson is…'",
-  "Predict: what do you think comes next in this topic?",
-  "Write one way you could apply what you just learned.",
-  "Identify one thing you're still confused about and write it down.",
-  "Rate your current understanding 1–10 and write why.",
-  "Explain this topic as if teaching it to a 10-year-old.",
-  "Write down the most important word from this lesson and define it.",
-  "List two similarities and one difference between two concepts discussed.",
-  "If you had to teach one part of this lesson, which would you choose and why?",
+const S = [
+  "Draw a silly dog in your book. Show it to the person infront or behind you, if you wish", 
+  "Start doomscrolling. At least 20 insta reels or such.", 
+  "Think of one real-world example of what was just explained in the short film.", 
+  "Come to front of the class to be surveilled. Remember to smile!", 
+  "Take a selfie, with flash", 
+  "Ask someone for money.", 
+  "Put headphones in.", 
+  "Draw a square, preferably with a ruler.", 
+  "Get into an argument with the person next to you, or give an attempt to.", 
+  "Look directly at David Shea for 10-20 seconds.", 
+  "Start conversation on a really touchy subject out of nowhere.", 
+  "Swap devices with someone else who has a red screen/task." 
+  "Change seats.", 
+  "Ask to swap seats with someone.", 
+  "Move to the front of the class.", 
+  "Come to the front and start presenting. If you have anxiety, you don't have to do this.", 
+  "Sit on your chair backwards.". 
+  "Take the note in your book/on your computer 'watch twin peaks'", 
+  "Cough. Really loudly.", 
+  "If you have any food, start eating it.", 
+  "Take notes on the presentation.", 
+  "Open the palantir website.", 
+  "Open the unimelb free speech declaration.", 
+  "Leave the room and re-enter from another door", 
+  "Stand up, then sit back down again.", 
+  "Tap someones shoulder, then act like you didn't." 
 ];
 
 // ── STATE ──────────────────────────────────────────────────────────────────
